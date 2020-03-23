@@ -153,8 +153,8 @@ $exa $testcases/dates -l       --time-style=iso      2>&1 | diff -q - $results/d
 # Locales
 # These two are used in particular because they have 5-long and 4-long
 # month names respectively
-env LANG=fr_FR.UTF-8  $exa $testcases/dates -l | diff -q - $results/dates_fr  || exit 1
-env LANG=ja_JP.UTF-8  $exa $testcases/dates -l | diff -q - $results/dates_jp  || exit 1
+env LC_ALL=fr_FR.UTF-8 LANG=fr_FR.UTF-8 $exa $testcases/dates -l | diff -q - $results/dates_fr  || exit 1
+env LC_ALL=ja_JP.UTF-8 LANG=ja_JP.UTF-8 $exa $testcases/dates -l | diff -q - $results/dates_jp  || exit 1
 
 
 # Paths and directories
@@ -175,7 +175,7 @@ COLUMNS=80 $exa $testcases/links     2>&1 | diff -q - $results/links          ||
 
 # There’ve been bugs where the target file wasn’t printed properly when the
 # symlink file was specified on the command-line directly.
-$exa $testcases/links/* -1 | diff -q - $results/links_1_files || exit 1
+$exa $testcases/links/* -1d | diff -q - $results/links_1_files || exit 1
 
 
 # Colours and terminals
@@ -209,6 +209,9 @@ $exa $testcases/git2/ignoreds                 -l --git 2>&1 | diff -q - $results
 $exa $testcases/git2/target                   -l --git 2>&1 | diff -q - $results/git_2_target      || exit 1
 $exa $testcases/git2/deeply/nested/repository -l --git 2>&1 | diff -q - $results/git_2_repository  || exit 1
 $exa $testcases/git2/{deeply,ignoreds,target} -l --git 2>&1 | diff -q - $results/git_2_all         || exit 1
+
+# Regressions test
+$exa $testcases/git3 -l --git &>/dev/null || exit 1
 
 COLUMNS=150 $exa $testcases/git/**/* $testcases --git --long --grid -d | diff -q - $results/git_1_files  || exit 1
 
@@ -276,8 +279,13 @@ $exa -lt  2>&1 | diff -q - $results/error_lt   || exit 1
 
 
 # Debug mode
-# (uses an empty directory so it prints nothing to stdout)
-EXA_DEBUG="1" $exa $testcases/attributes/dirs/no-xattrs_empty -lh 2>&1 | tail -n 2 | diff -q - $results/debug  || exit 1
+# What gets logged keeps changing, so instead of checking for an exact output,
+# list an empty directory and fail if nothing gets printed.
+DEBUG_OUT=$(EXA_DEBUG="1" $exa $testcases/attributes/dirs/no-xattrs_empty -lh 2>&1)
+if [ -z "$DEBUG_OUT" ]; then
+    echo "Debug test produced no output"
+    exit 1
+fi
 
 
 # And finally...

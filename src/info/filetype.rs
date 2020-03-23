@@ -6,8 +6,9 @@
 
 use ansi_term::Style;
 
-use fs::File;
-use output::file_name::FileColours;
+use crate::fs::File;
+use crate::output::file_name::FileColours;
+use crate::output::icons::FileIcon;
 
 
 #[derive(Debug, Default, PartialEq)]
@@ -19,10 +20,13 @@ impl FileExtensions {
     /// in order to kick off the build of a project. It’s usually only present
     /// in directories full of source code.
     fn is_immediate(&self, file: &File) -> bool {
-        file.name.starts_with("README") || file.name_is_one_of( &[
+        file.name.to_lowercase().starts_with("readme") ||
+        file.name.ends_with(".ninja") ||
+        file.name_is_one_of( &[
             "Makefile", "Cargo.toml", "SConstruct", "CMakeLists.txt",
-            "build.gradle", "Rakefile", "Gruntfile.js",
-            "Gruntfile.coffee",
+            "build.gradle", "pom.xml", "Rakefile", "package.json", "Gruntfile.js",
+            "Gruntfile.coffee", "BUILD", "BUILD.bazel", "WORKSPACE", "build.xml",
+            "webpack.config.js", "meson.build",
         ])
     }
 
@@ -30,16 +34,15 @@ impl FileExtensions {
         file.extension_is_one_of( &[
             "png", "jpeg", "jpg", "gif", "bmp", "tiff", "tif",
             "ppm", "pgm", "pbm", "pnm", "webp", "raw", "arw",
-            "svg", "stl", "eps", "dvi", "ps", "cbr",
+            "svg", "stl", "eps", "dvi", "ps", "cbr", "jpf",
             "cbz", "xpm", "ico", "cr2", "orf", "nef",
         ])
     }
 
     fn is_video(&self, file: &File) -> bool {
         file.extension_is_one_of( &[
-            "avi", "flv", "m2v", "mkv", "mov", "mp4", "mpeg",
+            "avi", "flv", "m2v", "m4v", "mkv", "mov", "mp4", "mpeg",
             "mpg", "ogm", "ogv", "vob", "wmv", "webm", "m2ts",
-            "ts",
         ])
     }
 
@@ -74,7 +77,7 @@ impl FileExtensions {
         file.extension_is_one_of( &[
             "zip", "tar", "Z", "z", "gz", "bz2", "a", "ar", "7z",
             "iso", "dmg", "tc", "rar", "par", "tgz", "xz", "txz",
-            "lzma", "deb", "rpm"
+            "lz", "tlz", "lzma", "deb", "rpm", "zst",
         ])
     }
 
@@ -85,7 +88,7 @@ impl FileExtensions {
     }
 
     fn is_compiled(&self, file: &File) -> bool {
-        if file.extension_is_one_of( &[ "class", "elc", "hi", "o", "pyc" ]) {
+        if file.extension_is_one_of( &[ "class", "elc", "hi", "o", "pyc", "zwc" ]) {
             true
         }
         else if let Some(dir) = file.parent_dir {
@@ -102,6 +105,7 @@ impl FileColours for FileExtensions {
         use ansi_term::Colour::*;
 
         Some(match file {
+            f if self.is_temp(f)        => Fixed(244).normal(),
             f if self.is_immediate(f)   => Yellow.bold().underline(),
             f if self.is_image(f)       => Fixed(133).normal(),
             f if self.is_video(f)       => Fixed(135).normal(),
@@ -110,9 +114,21 @@ impl FileColours for FileExtensions {
             f if self.is_crypto(f)      => Fixed(109).normal(),
             f if self.is_document(f)    => Fixed(105).normal(),
             f if self.is_compressed(f)  => Red.normal(),
-            f if self.is_temp(f)        => Fixed(244).normal(),
             f if self.is_compiled(f)    => Fixed(137).normal(),
             _                           => return None,
+        })
+    }
+}
+
+impl FileIcon for FileExtensions {
+    fn icon_file(&self, file: &File) -> Option<char> {
+        use crate::output::icons::Icons;
+
+        Some(match file {
+            f if self.is_music(f) || self.is_lossless(f) => Icons::Audio.value(),
+            f if self.is_image(f) => Icons::Image.value(),
+            f if self.is_video(f) => Icons::Video.value(),
+            _ => return None,
         })
     }
 }

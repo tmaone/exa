@@ -1,4 +1,4 @@
-use options::parser::{Arg, Args, Values, TakesValue};
+use crate::options::parser::{Arg, Args, Values, TakesValue};
 
 
 // exa options
@@ -30,8 +30,9 @@ pub static SORT:        Arg = Arg { short: Some(b's'), long: "sort",        take
 pub static IGNORE_GLOB: Arg = Arg { short: Some(b'I'), long: "ignore-glob", takes_value: TakesValue::Necessary(None) };
 pub static GIT_IGNORE:  Arg = Arg { short: None, long: "git-ignore",           takes_value: TakesValue::Forbidden };
 pub static DIRS_FIRST:  Arg = Arg { short: None, long: "group-directories-first",  takes_value: TakesValue::Forbidden };
+pub static ONLY_DIRS:   Arg = Arg { short: Some(b'D'), long: "only-dirs", takes_value: TakesValue::Forbidden };
 const SORTS: Values = &[ "name", "Name", "size", "extension",
-                             "Extension", "modified", "accessed",
+                             "Extension", "modified", "changed", "accessed",
                              "created", "inode", "type", "none" ];
 
 // display options
@@ -39,16 +40,24 @@ pub static BINARY:     Arg = Arg { short: Some(b'b'), long: "binary",     takes_
 pub static BYTES:      Arg = Arg { short: Some(b'B'), long: "bytes",      takes_value: TakesValue::Forbidden };
 pub static GROUP:      Arg = Arg { short: Some(b'g'), long: "group",      takes_value: TakesValue::Forbidden };
 pub static HEADER:     Arg = Arg { short: Some(b'h'), long: "header",     takes_value: TakesValue::Forbidden };
+pub static ICONS:      Arg = Arg { short: None,       long: "icons",      takes_value: TakesValue::Forbidden };
 pub static INODE:      Arg = Arg { short: Some(b'i'), long: "inode",      takes_value: TakesValue::Forbidden };
 pub static LINKS:      Arg = Arg { short: Some(b'H'), long: "links",      takes_value: TakesValue::Forbidden };
 pub static MODIFIED:   Arg = Arg { short: Some(b'm'), long: "modified",   takes_value: TakesValue::Forbidden };
+pub static CHANGED:    Arg = Arg { short: None,       long: "changed",    takes_value: TakesValue::Forbidden };
 pub static BLOCKS:     Arg = Arg { short: Some(b'S'), long: "blocks",     takes_value: TakesValue::Forbidden };
 pub static TIME:       Arg = Arg { short: Some(b't'), long: "time",       takes_value: TakesValue::Necessary(Some(TIMES)) };
 pub static ACCESSED:   Arg = Arg { short: Some(b'u'), long: "accessed",   takes_value: TakesValue::Forbidden };
 pub static CREATED:    Arg = Arg { short: Some(b'U'), long: "created",    takes_value: TakesValue::Forbidden };
 pub static TIME_STYLE: Arg = Arg { short: None,       long: "time-style", takes_value: TakesValue::Necessary(Some(TIME_STYLES)) };
-const TIMES: Values = &["modified", "accessed", "created"];
+const TIMES: Values = &["modified", "changed", "accessed", "created"];
 const TIME_STYLES: Values = &["default", "long-iso", "full-iso", "iso"];
+
+// suppressing columns
+pub static NO_PERMISSIONS: Arg = Arg { short: None, long: "no-permissions", takes_value: TakesValue::Forbidden };
+pub static NO_FILESIZE: Arg = Arg { short: None, long: "no-filesize", takes_value: TakesValue::Forbidden };
+pub static NO_USER: Arg = Arg { short: None, long: "no-user", takes_value: TakesValue::Forbidden };
+pub static NO_TIME: Arg = Arg { short: None, long: "no-time", takes_value: TakesValue::Forbidden };
 
 // optional feature options
 pub static GIT:       Arg = Arg { short: None,       long: "git",      takes_value: TakesValue::Forbidden };
@@ -62,11 +71,11 @@ pub static ALL_ARGS: Args = Args(&[
     &COLOR, &COLOUR, &COLOR_SCALE, &COLOUR_SCALE,
 
     &ALL, &LIST_DIRS, &LEVEL, &REVERSE, &SORT, &DIRS_FIRST,
-    &IGNORE_GLOB, &GIT_IGNORE,
+    &IGNORE_GLOB, &GIT_IGNORE, &ONLY_DIRS,
 
-    &BINARY, &BYTES, &GROUP, &HEADER, &INODE, &LINKS, &MODIFIED, &BLOCKS,
-    &TIME, &ACCESSED, &CREATED, &TIME_STYLE,
+    &BINARY, &BYTES, &GROUP, &HEADER, &ICONS, &INODE, &LINKS, &MODIFIED, &CHANGED,
+    &BLOCKS, &TIME, &ACCESSED, &CREATED, &TIME_STYLE,
+    &NO_PERMISSIONS, &NO_FILESIZE, &NO_USER, &NO_TIME,
 
     &GIT, &EXTENDED,
 ]);
-

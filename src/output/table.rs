@@ -8,13 +8,16 @@ use zoneinfo_compiled::{CompiledData, Result as TZResult};
 
 use locale;
 
+use log::debug;
+
 use users::UsersCache;
 
-use style::Colours;
-use output::cell::TextCell;
-use output::time::TimeFormat;
-use fs::{File, fields as f};
-use fs::feature::git::GitCache;
+use crate::style::Colours;
+use crate::output::cell::TextCell;
+use crate::output::render::TimeRender;
+use crate::output::time::TimeFormat;
+use crate::fs::{File, fields as f};
+use crate::fs::feature::git::GitCache;
 
 
 /// Options for displaying a table.
@@ -22,14 +25,14 @@ pub struct Options {
     pub env: Environment,
     pub size_format: SizeFormat,
     pub time_format: TimeFormat,
-    pub extra_columns: Columns,
+    pub columns: Columns,
 }
 
 // I had to make other types derive Debug,
 // and Mutex<UsersCache> is not that!
 impl fmt::Debug for Options {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "Table({:#?})", self.extra_columns)
+        write!(f, "Table({:#?})", self.columns)
     }
 }
 
@@ -46,6 +49,11 @@ pub struct Columns {
     pub blocks: bool,
     pub group: bool,
     pub git: bool,
+
+    // Defaults to true:
+    pub permissions: bool,
+    pub filesize: bool,
+    pub user: bool,
 }
 
 impl Columns {
@@ -56,19 +64,25 @@ impl Columns {
             columns.push(Column::Inode);
         }
 
-        columns.push(Column::Permissions);
+        if self.permissions {
+            columns.push(Column::Permissions);
+        }
 
         if self.links {
             columns.push(Column::HardLinks);
         }
 
-        columns.push(Column::FileSize);
+        if self.filesize {
+            columns.push(Column::FileSize);
+        }
 
         if self.blocks {
             columns.push(Column::Blocks);
         }
 
-        columns.push(Column::User);
+        if self.user {
+            columns.push(Column::User);
+        }
 
         if self.group {
             columns.push(Column::Group);
@@ -76,6 +90,10 @@ impl Columns {
 
         if self.time_types.modified {
             columns.push(Column::Timestamp(TimeType::Modified));
+        }
+
+        if self.time_types.changed {
+            columns.push(Column::Timestamp(TimeType::Changed));
         }
 
         if self.time_types.created {
@@ -175,24 +193,27 @@ impl Default for SizeFormat {
 /// across most (all?) operating systems.
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum TimeType {
+    /// The file’s modified time (`st_mtime`).
+    Modified,
+
+    /// The file’s changed time (`st_ctime`)
+    Changed,
 
     /// The file’s accessed time (`st_atime`).
     Accessed,
 
-    /// The file’s modified time (`st_mtime`).
-    Modified,
-
-    /// The file’s creation time (`st_ctime`).
+    /// The file’s creation time (`btime` or `birthtime`).
     Created,
 }
 
 impl TimeType {
 
     /// Returns the text to use for a column’s heading in the columns output.
-    pub fn header(&self) -> &'static str {
-        match *self {
-            TimeType::Accessed  => "Date Accessed",
+    pub fn header(self) -> &'static str {
+        match self {
             TimeType::Modified  => "Date Modified",
+            TimeType::Changed   => "Date Changed",
+            TimeType::Accessed  => "Date Accessed",
             TimeType::Created   => "Date Created",
         }
     }
@@ -206,8 +227,9 @@ impl TimeType {
 /// the time columns entirely (yet).
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct TimeTypes {
-    pub accessed: bool,
     pub modified: bool,
+    pub changed:  bool,
+    pub accessed: bool,
     pub created:  bool,
 }
 
@@ -216,7 +238,7 @@ impl Default for TimeTypes {
     /// By default, display just the ‘modified’ time. This is the most
     /// common option, which is why it has this shorthand.
     fn default() -> TimeTypes {
-        TimeTypes { accessed: false, modified: true, created: false }
+        TimeTypes { modified: true, changed: false, accessed: false, created: false }
     }
 }
 
@@ -285,7 +307,7 @@ pub struct Row {
 
 impl<'a, 'f> Table<'a> {
     pub fn new(options: &'a Options, git: Option<&'a GitCache>, colours: &'a Colours) -> Table<'a> {
-        let columns = options.extra_columns.collect(git.is_some());
+        let columns = options.columns.collect(git.is_some());
         let widths = TableWidths::zero(columns.len());
 
         Table {
@@ -324,12 +346,12 @@ impl<'a, 'f> Table<'a> {
         f::PermissionsPlus {
             file_type: file.type_char(),
             permissions: file.permissions(),
-            xattrs: xattrs,
+            xattrs,
         }
     }
 
     fn display(&self, file: &File, column: &Column, xattrs: bool) -> TextCell {
-        use output::table::TimeType::*;
+        use crate::output::table::TimeType::*;
 
         match *column {
             Column::Permissions    => self.permissions_plus(file, xattrs).render(self.colours),
@@ -342,6 +364,7 @@ impl<'a, 'f> Table<'a> {
             Column::GitStatus      => self.git_status(file).render(self.colours),
 
             Column::Timestamp(Modified)  => file.modified_time().render(self.colours.date, &self.env.tz, &self.time_format),
+            Column::Timestamp(Changed)   => file.changed_time() .render(self.colours.date, &self.env.tz, &self.time_format),
             Column::Timestamp(Created)   => file.created_time() .render(self.colours.date, &self.env.tz, &self.time_format),
             Column::Timestamp(Accessed)  => file.accessed_time().render(self.colours.date, &self.env.tz, &self.time_format),
         }
@@ -379,7 +402,7 @@ pub struct TableWidths(Vec<usize>);
 impl Deref for TableWidths {
     type Target = [usize];
 
-    fn deref<'a>(&'a self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }

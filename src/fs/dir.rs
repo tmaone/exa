@@ -3,8 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::slice::Iter as SliceIter;
 
-use fs::File;
-use fs::feature::ignore::IgnoreCache;
+use log::info;
+
+use crate::fs::File;
+use crate::fs::feature::ignore::IgnoreCache;
 
 
 /// A **Dir** provides a cached list of the file paths in a directory that's
@@ -35,9 +37,9 @@ impl Dir {
     pub fn read_dir(path: PathBuf) -> IOResult<Dir> {
         info!("Reading directory {:?}", &path);
 
-        let contents: Vec<PathBuf> = try!(fs::read_dir(&path)?
+        let contents = fs::read_dir(&path)?
                                              .map(|result| result.map(|entry| entry.path()))
-                                             .collect());
+                                             .collect::<Result<_,_>>()?;
 
         Ok(Dir { contents, path })
     }
@@ -52,7 +54,7 @@ impl Dir {
             dir:       self,
             dotfiles:  dots.shows_dotfiles(),
             dots:      dots.dots(),
-            ignore:    ignore,
+            ignore,
         }
     }
 
@@ -82,7 +84,7 @@ pub struct Files<'dir, 'ig> {
 
     /// Whether the `.` or `..` directories should be produced first, before
     /// any files have been listed.
-    dots: Dots,
+    dots: DotsNext,
 
     ignore: Option<&'ig IgnoreCache>,
 }
@@ -103,13 +105,13 @@ impl<'dir, 'ig> Files<'dir, 'ig> {
         loop {
             if let Some(path) = self.inner.next() {
                 let filename = File::filename(path);
-                if !self.dotfiles && filename.starts_with(".") { continue }
+                if !self.dotfiles && filename.starts_with('.') { continue }
 
                 if let Some(i) = self.ignore {
                     if i.is_ignored(path) { continue }
                 }
 
-                return Some(File::new(path.clone(), self.dir, filename)
+                return Some(File::from_args(path.clone(), self.dir, filename)
                                  .map_err(|e| (path.clone(), e)))
             }
             else {
@@ -121,16 +123,16 @@ impl<'dir, 'ig> Files<'dir, 'ig> {
 
 /// The dot directories that need to be listed before actual files, if any.
 /// If these aren’t being printed, then `FilesNext` is used to skip them.
-enum Dots {
+enum DotsNext {
 
     /// List the `.` directory next.
-    DotNext,
+    Dot,
 
     /// List the `..` directory next.
-    DotDotNext,
+    DotDot,
 
     /// Forget about the dot directories and just list files.
-    FilesNext,
+    Files,
 }
 
 
@@ -138,18 +140,20 @@ impl<'dir, 'ig> Iterator for Files<'dir, 'ig> {
     type Item = Result<File<'dir>, (PathBuf, io::Error)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Dots::DotNext = self.dots {
-            self.dots = Dots::DotDotNext;
-            Some(File::new(self.dir.path.to_path_buf(), self.dir, String::from("."))
-                      .map_err(|e| (Path::new(".").to_path_buf(), e)))
-        }
-        else if let Dots::DotDotNext = self.dots {
-            self.dots = Dots::FilesNext;
-            Some(File::new(self.parent(), self.dir, String::from(".."))
-                      .map_err(|e| (self.parent(), e)))
-        }
-        else {
-            self.next_visible_file()
+        match self.dots {
+            DotsNext::Dot => {
+                self.dots = DotsNext::DotDot;
+                Some(File::new_aa_current(self.dir)
+                          .map_err(|e| (Path::new(".").to_path_buf(), e)))
+            },
+            DotsNext::DotDot => {
+                self.dots = DotsNext::Files;
+                Some(File::new_aa_parent(self.parent(), self.dir)
+                          .map_err(|e| (self.parent(), e)))
+            },
+            DotsNext::Files => {
+                self.next_visible_file()
+            },
         }
     }
 }
@@ -180,8 +184,8 @@ impl Default for DotFilter {
 impl DotFilter {
 
     /// Whether this filter should show dotfiles in a listing.
-    fn shows_dotfiles(&self) -> bool {
-        match *self {
+    fn shows_dotfiles(self) -> bool {
+        match self {
             DotFilter::JustFiles       => false,
             DotFilter::Dotfiles        => true,
             DotFilter::DotfilesAndDots => true,
@@ -189,11 +193,11 @@ impl DotFilter {
     }
 
     /// Whether this filter should add dot directories to a listing.
-    fn dots(&self) -> Dots {
-        match *self {
-            DotFilter::JustFiles       => Dots::FilesNext,
-            DotFilter::Dotfiles        => Dots::FilesNext,
-            DotFilter::DotfilesAndDots => Dots::DotNext,
+    fn dots(self) -> DotsNext {
+        match self {
+            DotFilter::JustFiles       => DotsNext::Files,
+            DotFilter::Dotfiles        => DotsNext::Files,
+            DotFilter::DotfilesAndDots => DotsNext::Dot,
         }
     }
 }

@@ -2,6 +2,12 @@
 
 [exa](https://the.exa.website/) is a replacement for `ls` written in Rust.
 
+## Rationale
+
+**exa**  is a modern replacement for the command-line program `ls` that ships with Unix and Linux operating systems, with more features and better defaults. It uses colours to distinguish file types and metadata. It knows about symlinks, extended attributes, and Git. And it’s **small**, **fast**, and just one **single binary**.
+
+By deliberately making some decisions differently, exa attempts to be a more featureful, more user-friendly version of `ls`.
+
 ## Screenshots
 
 ![Screenshots of exa](screenshots.png)
@@ -19,8 +25,10 @@ exa’s options are almost, but not quite, entirely unlike `ls`'s.
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
 - **-x**, **--across**: sort the grid across, rather than downwards
+- **-F**, **--classify**: display type indicator by file names
 - **--colo[u]r**: when to use terminal colours
 - **--colo[u]r-scale**: highlight levels of file sizes distinctly
+- **--icons**: display icons
 
 ### Filtering Options
 
@@ -30,6 +38,7 @@ exa’s options are almost, but not quite, entirely unlike `ls`'s.
 - **-r**, **--reverse**: reverse the sort order
 - **-s**, **--sort=(field)**: which field to sort by
 - **--group-directories-first**: list directories before other files
+- **-D**, **--only-dirs**: list only directories
 - **--git-ignore**: ignore files mentioned in `.gitignore`
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
 
@@ -51,22 +60,29 @@ These options are available when running with --long (`-l`):
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field
 - **-@**, **--extended**: list each file's extended attributes and sizes
-- **--git**: list each file's Git status, if tracked
+- **--changed**: use the changed timestamp field
+- **--git**: list each file's Git status, if tracked or ignored
 - **--time-style**: how to format timestamps
+- **--no-permissions**: suppress the permissions field
+- **--no-filesize**: suppress the filesize field
+- **--no-user**: suppress the user field
+- **--no-time**: suppress the time field
 
 - Valid **--color** options are **always**, **automatic**, and **never**.
-- Valid sort fields are **accessed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **size**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**.
-- Valid time fields are **modified**, **accessed**, and **created**.
+- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **size**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**.
+- Valid time fields are **modified**, **changed**, **accessed**, and **created**.
 - Valid time styles are **default**, **iso**, **long-iso**, and **full-iso**.
 
 
 ## Installation
 
-exa is written in [Rust](http://www.rust-lang.org). You will need rustc version 1.17.0 or higher. The recommended way to install Rust is from the official download page.
+exa is written in [Rust](http://www.rust-lang.org). You will need rustc version 1.35.0 or higher. The recommended way to install Rust is from the official download page.
 Once you have it set up, a simple `make install` will compile exa and install it into `/usr/local/bin`.
 
 exa depends on [libgit2](https://github.com/alexcrichton/git2-rs) for certain features.
 If you’re unable to compile libgit2, you can opt out of Git support by running `cargo build --release --no-default-features`.
+
+If you intend to compile for musl you will need to use the flag vendored-openssl if you want to get the Git feature working: `cargo build --release --target=x86_64-unknown-linux-musl --features vendored-openssl,git`
 
 ### Cargo Install
 
@@ -80,6 +96,29 @@ or:
 
 Cargo will build the `exa` binary and place it in `$HOME/.cargo` (this location can be overridden by setting the `--root` option).
 
+### Homebrew
+
+If you're using [homebrew](https://brew.sh/), you can use the `brew install` command:
+
+    brew install exa
+
+or:
+
+    brew install exa --without-git
+
+[Formulae](https://github.com/Homebrew/homebrew-core/blob/master/Formula/exa.rb)
+
+### Fedora
+
+You can install the `exa` package from the official Fedora repositories by running:
+
+    dnf install exa
+
+### Nix
+
+`exa` is also installable through [the derivation](https://github.com/NixOS/nixpkgs/blob/master/pkgs/tools/misc/exa/default.nix) using the [nix package manager](https://nixos.org/nix/) by running:
+
+    nix-env -i exa
 
 ## Testing with Vagrant
 
@@ -91,7 +130,7 @@ The initial attempt to solve the problem was just to create a directory of “aw
 
 An alternative solution is to fake *everything*: create a virtual machine with a known state and run the tests on *that*. This is what Vagrant does. Although it takes a while to download and set up, it gives everyone the same development environment to test for any obvious regressions.
 
-[Vagrant]: https://www.vagrantup.com/docs/why-vagrant/
+[Vagrant]: https://www.vagrantup.com/
 [testing]: https://eev.ee/blog/2016/08/22/testing-for-people-who-hate-testing/#troublesome-cases
 
 First, initialise the VM:

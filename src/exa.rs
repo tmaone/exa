@@ -1,27 +1,6 @@
 #![warn(trivial_casts, trivial_numeric_casts)]
 #![warn(unused_results)]
 
-extern crate ansi_term;
-extern crate datetime;
-extern crate glob;
-extern crate libc;
-extern crate locale;
-extern crate natord;
-extern crate num_cpus;
-extern crate number_prefix;
-extern crate scoped_threadpool;
-extern crate term_grid;
-extern crate unicode_width;
-extern crate users;
-extern crate zoneinfo_compiled;
-extern crate term_size;
-
-#[cfg(feature="git")] extern crate git2;
-
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate log;
-
-
 use std::env::var_os;
 use std::ffi::{OsStr, OsString};
 use std::io::{stderr, Write, Result as IOResult};
@@ -29,13 +8,15 @@ use std::path::{Component, PathBuf};
 
 use ansi_term::{ANSIStrings, Style};
 
-use fs::{Dir, File};
-use fs::feature::ignore::IgnoreCache;
-use fs::feature::git::GitCache;
-use options::{Options, Vars};
-pub use options::vars;
-pub use options::Misfire;
-use output::{escape, lines, grid, grid_details, details, View, Mode};
+use log::debug;
+
+use crate::fs::{Dir, File};
+use crate::fs::feature::ignore::IgnoreCache;
+use crate::fs::feature::git::GitCache;
+use crate::options::{Options, Vars};
+pub use crate::options::vars;
+pub use crate::options::Misfire;
+use crate::output::{escape, lines, grid, grid_details, details, View, Mode};
 
 mod fs;
 mod info;
@@ -83,7 +64,7 @@ impl Vars for LiveVars {
 /// listed before they’re actually listed, if the options demand it.
 fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
     if options.should_scan_for_git() {
-        Some(args.iter().map(|os| PathBuf::from(os)).collect())
+        Some(args.iter().map(PathBuf::from).collect())
     }
     else {
         None
@@ -91,7 +72,7 @@ fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
 }
 
 fn ignore_cache(options: &Options) -> Option<IgnoreCache> {
-    use fs::filter::GitIgnore;
+    use crate::fs::filter::GitIgnore;
 
     match options.filter.git_ignore {
         GitIgnore::CheckAndIgnore => Some(IgnoreCache::new()),
@@ -100,7 +81,7 @@ fn ignore_cache(options: &Options) -> Option<IgnoreCache> {
 }
 
 impl<'args, 'w, W: Write + 'w> Exa<'args, 'w, W> {
-    pub fn new<I>(args: I, writer: &'w mut W) -> Result<Exa<'args, 'w, W>, Misfire>
+    pub fn from_args<I>(args: I, writer: &'w mut W) -> Result<Exa<'args, 'w, W>, Misfire>
     where I: Iterator<Item=&'args OsString> {
         Options::parse(args, &LiveVars).map(move |(options, mut args)| {
             debug!("Dir action from arguments: {:#?}", options.dir_action);
@@ -125,13 +106,13 @@ impl<'args, 'w, W: Write + 'w> Exa<'args, 'w, W> {
         let mut exit_status = 0;
 
         for file_path in &self.args {
-            match File::new(PathBuf::from(file_path), None, None) {
+            match File::from_args(PathBuf::from(file_path), None, None) {
                 Err(e) => {
                     exit_status = 2;
                     writeln!(stderr(), "{:?}: {}", file_path, e)?;
                 },
                 Ok(f) => {
-                    if f.is_directory() && !self.options.dir_action.treat_dirs_as_files() {
+                    if f.points_to_directory() && !self.options.dir_action.treat_dirs_as_files() {
                         match f.to_dir() {
                             Ok(d) => dirs.push(d),
                             Err(e) => writeln!(stderr(), "{:?}: {}", file_path, e)?,
@@ -166,7 +147,7 @@ impl<'args, 'w, W: Write + 'w> Exa<'args, 'w, W> {
                 first = false;
             }
             else {
-                write!(self.writer, "\n")?;
+                writeln!(self.writer)?;
             }
 
             if !is_only_dir {
@@ -191,7 +172,7 @@ impl<'args, 'w, W: Write + 'w> Exa<'args, 'w, W> {
                 if !recurse_opts.tree && !recurse_opts.is_too_deep(depth) {
 
                     let mut child_dirs = Vec::new();
-                    for child_dir in children.iter().filter(|f| f.is_directory()) {
+                    for child_dir in children.iter().filter(|f| f.is_directory() && !f.is_all_all) {
                         match child_dir.to_dir() {
                             Ok(d)  => child_dirs.push(d),
                             Err(e) => writeln!(stderr(), "{}: {}", child_dir.path.display(), e)?,
@@ -221,8 +202,8 @@ impl<'args, 'w, W: Write + 'w> Exa<'args, 'w, W> {
             let View { ref mode, ref colours, ref style } = self.options.view;
 
             match *mode {
-                Mode::Lines => {
-                    let r = lines::Render { files, colours, style };
+                Mode::Lines(ref opts) => {
+                    let r = lines::Render { files, colours, style, opts };
                     r.render(self.writer)
                 }
 

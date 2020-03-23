@@ -8,7 +8,9 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use fs::filter::IgnorePatterns;
+use log::debug;
+
+use crate::fs::filter::IgnorePatterns;
 
 
 /// An **ignore cache** holds sets of glob patterns paired with the
@@ -72,7 +74,7 @@ fn file_lines_to_patterns<'a, I>(iter: I) -> IgnorePatterns
 where I: Iterator<Item=&'a str>
 {
     let iter = iter.filter(|el| !el.is_empty());
-    let iter = iter.filter(|el| !el.starts_with("#"));
+    let iter = iter.filter(|el| !el.starts_with('#'));
 
     // TODO: Figure out if this should trim whitespace or not
 

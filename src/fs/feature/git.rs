@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use git2;
+use log::{debug, error, info, warn};
 
-use fs::fields as f;
+use crate::fs::fields as f;
 
 
 /// A **Git cache** is assembled based on the user’s input arguments.
@@ -53,7 +54,7 @@ impl FromIterator<PathBuf> for GitCache {
             else {
                 match GitRepo::discover(path) {
                     Ok(r) => {
-                        if let Some(mut r2) = git.repos.iter_mut().find(|e| e.has_workdir(&r.workdir)) {
+                        if let Some(r2) = git.repos.iter_mut().find(|e| e.has_workdir(&r.workdir)) {
                             debug!("Adding to existing repo (workdir matches with {:?})", r2.workdir);
                             r2.extra_paths.push(r.original_path);
                             continue;
@@ -134,7 +135,7 @@ impl GitRepo {
 
         debug!("Querying Git repo {:?} for the first time", &self.workdir);
         let repo = replace(&mut *contents, Processing).inner_repo();
-        let statuses = repo_to_statuses(repo, &self.workdir);
+        let statuses = repo_to_statuses(&repo, &self.workdir);
         let result = statuses.status(index, prefix_lookup);
         let _processing = replace(&mut *contents, After { statuses });
         result
@@ -194,7 +195,7 @@ impl GitContents {
 /// mapping of files to their Git status.
 /// We will have already used the working directory at this point, so it gets
 /// passed in rather than deriving it from the `Repository` again.
-fn repo_to_statuses(repo: git2::Repository, workdir: &Path) -> Git {
+fn repo_to_statuses(repo: &git2::Repository, workdir: &Path) -> Git {
     let mut statuses = Vec::new();
 
     info!("Getting Git statuses for repo with workdir {:?}", workdir);
@@ -265,21 +266,23 @@ impl Git {
 fn reorient(path: &Path) -> PathBuf {
     use std::env::current_dir;
     // I’m not 100% on this func tbh
-    match current_dir() {
+    let path = match current_dir() {
         Err(_)  => Path::new(".").join(&path),
         Ok(dir) => dir.join(&path),
-    }
+    };
+    path.canonicalize().unwrap_or(path)
 }
 
 /// The character to display if the file has been modified, but not staged.
 fn working_tree_status(status: git2::Status) -> f::GitStatus {
     match status {
-        s if s.contains(git2::STATUS_WT_NEW)         => f::GitStatus::New,
-        s if s.contains(git2::STATUS_WT_MODIFIED)    => f::GitStatus::Modified,
-        s if s.contains(git2::STATUS_WT_DELETED)     => f::GitStatus::Deleted,
-        s if s.contains(git2::STATUS_WT_RENAMED)     => f::GitStatus::Renamed,
-        s if s.contains(git2::STATUS_WT_TYPECHANGE)  => f::GitStatus::TypeChange,
-        _                                            => f::GitStatus::NotModified,
+        s if s.contains(git2::Status::WT_NEW)         => f::GitStatus::New,
+        s if s.contains(git2::Status::WT_MODIFIED)    => f::GitStatus::Modified,
+        s if s.contains(git2::Status::WT_DELETED)     => f::GitStatus::Deleted,
+        s if s.contains(git2::Status::WT_RENAMED)     => f::GitStatus::Renamed,
+        s if s.contains(git2::Status::WT_TYPECHANGE)  => f::GitStatus::TypeChange,
+        s if s.contains(git2::Status::IGNORED)        => f::GitStatus::Ignored,
+        _                                             => f::GitStatus::NotModified,
     }
 }
 
@@ -287,11 +290,11 @@ fn working_tree_status(status: git2::Status) -> f::GitStatus {
 /// has been staged.
 fn index_status(status: git2::Status) -> f::GitStatus {
     match status {
-        s if s.contains(git2::STATUS_INDEX_NEW)         => f::GitStatus::New,
-        s if s.contains(git2::STATUS_INDEX_MODIFIED)    => f::GitStatus::Modified,
-        s if s.contains(git2::STATUS_INDEX_DELETED)     => f::GitStatus::Deleted,
-        s if s.contains(git2::STATUS_INDEX_RENAMED)     => f::GitStatus::Renamed,
-        s if s.contains(git2::STATUS_INDEX_TYPECHANGE)  => f::GitStatus::TypeChange,
-        _                                               => f::GitStatus::NotModified,
+        s if s.contains(git2::Status::INDEX_NEW)         => f::GitStatus::New,
+        s if s.contains(git2::Status::INDEX_MODIFIED)    => f::GitStatus::Modified,
+        s if s.contains(git2::Status::INDEX_DELETED)     => f::GitStatus::Deleted,
+        s if s.contains(git2::Status::INDEX_RENAMED)     => f::GitStatus::Renamed,
+        s if s.contains(git2::Status::INDEX_TYPECHANGE)  => f::GitStatus::TypeChange,
+        _                                                => f::GitStatus::NotModified,
     }
 }

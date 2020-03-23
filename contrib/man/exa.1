@@ -1,5 +1,5 @@
 .hy
-.TH "exa" "1" "2017\-07\-07" "exa 0.7.0" ""
+.TH "exa" "1" "2019\-07\-15" "exa 0.9.0" ""
 .SH NAME
 .PP
 exa \- a modern replacement for ls
@@ -61,6 +61,11 @@ when to use terminal colours (always, automatic, never)
 highlight levels of file sizes distinctly
 .RS
 .RE
+.TP
+.B \-\-icons
+display icons
+.RS
+.RE
 .SH FILTERING AND SORTING OPTIONS
 .TP
 .B \-a, \-\-all
@@ -74,6 +79,11 @@ list directories like regular files
 .RS
 .RE
 .TP
+.B \-L, \-\-level=\f[I]DEPTH\f[]
+limit the depth of recursion
+.RS
+.RE
+.TP
 .B \-r, \-\-reverse
 reverse the sort order
 .RS
@@ -81,7 +91,7 @@ reverse the sort order
 .TP
 .B \-s, \-\-sort=\f[I]SORT_FIELD\f[]
 which field to sort by.
-Valid fields are name, Name, extension, Extension, size, modified, accessed, created, inode, type, and none.
+Valid fields are name, Name, extension, Extension, size, modified, changed, accessed, created, inode, type, and none.
 The modified field has the aliases date, time, and newest, and its reverse order has the aliases age and oldest.
 Fields starting with a capital letter will sort uppercase before lowercase: 'A' then 'B' then 'a' then 'b'.
 Fields starting with a lowercase letter will mix them: 'A' then 'a' then 'B' then 'b'.
@@ -102,6 +112,11 @@ ignore files mentioned in '.gitignore'
 list directories before other files
 .RS
 .RE
+.TP
+.B \-D, \-\-only\-dirs
+list only directories
+.RS
+.RE
 .SH LONG VIEW OPTIONS
 .PP
 These options are available when running with \f[C]\-\-long\f[]
@@ -114,6 +129,11 @@ list file sizes with binary prefixes
 .TP
 .B \-B, \-\-bytes
 list file sizes in bytes, without any prefixes
+.RS
+.RE
+.TP
+.B \-\-changed
+use the changed timestamp field
 .RS
 .RE
 .TP
@@ -137,11 +157,6 @@ list each file\[aq]s inode number
 .RS
 .RE
 .TP
-.B \-L, \-\-level=\f[I]DEPTH\f[]
-limit the depth of recursion
-.RS
-.RE
-.TP
 .B \-m, \-\-modified
 use the modified timestamp field
 .RS
@@ -153,7 +168,7 @@ list each file\[aq]s number of file system blocks
 .RE
 .TP
 .B \-t, \-\-time=\f[I]WORD\f[]
-which timestamp field to list (modified, accessed, created)
+which timestamp field to list (modified, changed, accessed, created)
 .RS
 .RE
 .TP
@@ -169,6 +184,26 @@ use the accessed timestamp field
 .TP
 .B \-U, \-\-created
 use the created timestamp field
+.RS
+.RE
+.TP
+.B \-\-no\-permissions
+suppress the permissions field
+.RS
+.RE
+.TP
+.B \-\-no\-filesize
+suppress the filesize field
+.RS
+.RE
+.TP
+.B \-\-no\-user
+suppress the user field
+.RS
+.RE
+.TP
+.B \-\-no\-time
+suppress the time field
 .RS
 .RE
 .TP
@@ -306,9 +341,29 @@ glob, including keys that happen to be two letters long.
 .IP \[bu] 2
 \f[B]xa\f[], the extended attribute indicator
 .IP \[bu] 2
-\f[B]sn\f[], the numbers of a file\[aq]s size
+\f[B]sn\f[], the numbers of a file\[aq]s size (sets nb, nk, nm, ng and nh)
 .IP \[bu] 2
-\f[B]sb\f[], the units of a file\[aq]s size
+\f[B]nb\f[], the numbers of a file\[aq]s size if it is lower than 1 KB/Kib
+.IP \[bu] 2
+\f[B]nk\f[], the numbers of a file\[aq]s size if it is between 1 KB/KiB and 1 MB/MiB
+.IP \[bu] 2
+\f[B]nm\f[], the numbers of a file\[aq]s size if it is between 1 MB/MiB and 1 GB/GiB
+.IP \[bu] 2
+\f[B]ng\f[], the numbers of a file\[aq]s size if it is between 1 GB/GiB and 1 TB/TiB
+.IP \[bu] 2
+\f[B]nt\f[], the numbers of a file\[aq]s size if it is 1 TB/TiB or higher
+.IP \[bu] 2
+\f[B]sb\f[], the units of a file\[aq]s size (sets ub, uk, um, ug and uh)
+.IP \[bu] 2
+\f[B]ub\f[], the units of a file\[aq]s size if it is lower than 1 KB/Kib
+.IP \[bu] 2
+\f[B]uk\f[], the units of a file\[aq]s size if it is between 1 KB/KiB and 1 MB/MiB
+.IP \[bu] 2
+\f[B]um\f[], the units of a file\[aq]s size if it is between 1 MB/MiB and 1 GB/GiB
+.IP \[bu] 2
+\f[B]ug\f[], the units of a file\[aq]s size if it is between 1 GB/GiB and 1 TB/TiB
+.IP \[bu] 2
+\f[B]ut\f[], the units of a file\[aq]s size if it is 1 TB/TiB or higher
 .IP \[bu] 2
 \f[B]df\f[], a device\[aq]s major ID
 .IP \[bu] 2

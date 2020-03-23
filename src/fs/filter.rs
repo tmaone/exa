@@ -8,8 +8,8 @@ use std::path::Path;
 use glob;
 use natord;
 
-use fs::File;
-use fs::DotFilter;
+use crate::fs::File;
+use crate::fs::DotFilter;
 
 
 /// The **file filter** processes a list of files before displaying them to
@@ -40,6 +40,9 @@ pub struct FileFilter {
     /// files first, or files starting with Z, or the most-recently-changed
     /// ones, depending on the sort field.
     pub reverse: bool,
+
+    /// Whether to only show directories.
+    pub only_dirs: bool,
 
     /// Which invisible “dot” files to include when listing a directory.
     ///
@@ -94,6 +97,10 @@ impl FileFilter {
     /// filter predicate for files found inside a directory.
     pub fn filter_child_files(&self, files: &mut Vec<File>) {
         files.retain(|f| !self.ignore_patterns.is_ignored(&f.name));
+
+        if self.only_dirs {
+            files.retain(|f| f.is_directory());
+        }
     }
 
     /// Remove every file in the given vector that does *not* pass the
@@ -122,7 +129,9 @@ impl FileFilter {
         if self.list_dirs_first {
             // This relies on the fact that `sort_by` is *stable*: it will keep
             // adjacent elements next to each other.
-            files.sort_by(|a, b| b.as_ref().is_directory().cmp(&a.as_ref().is_directory()));
+            files.sort_by(|a, b| {b.as_ref().points_to_directory()
+                .cmp(&a.as_ref().points_to_directory())
+            });
         }
     }
 }
@@ -166,13 +175,16 @@ pub enum SortField {
     /// http://unix.stackexchange.com/a/8842
     AccessedDate,
 
-    /// The time the file was changed or created (the “ctime”).
+    /// The time the file was changed (the “ctime”).
     ///
-    /// Contrary to the name, this field is used to mark the time when a
-    /// file’s metadata changed -- its permissions, owners, or link count.
+    /// This field is used to mark the time when a file’s metadata
+    /// changed -- its permissions, owners, or link count.
     ///
     /// In original Unix, this was, however, meant as creation time.
     /// https://www.bell-labs.com/usr/dmr/www/cacm.html
+    ChangedDate,
+
+    /// The time the file was created (the "btime" or "birthtime").
     CreatedDate,
 
     /// The type of the file: directories, links, pipes, regular, files, etc.
@@ -191,6 +203,10 @@ pub enum SortField {
     /// bad, even though that’s kind of nonsensical. So it’s its own variant
     /// that can be reversed like usual.
     ModifiedAge,
+
+    /// The file's name, however if the name of the file begins with `.`
+    /// ignore the leading `.` and then sort as Name
+    NameMixHidden(SortCase),
 }
 
 /// Whether a field should be sorted case-sensitively or case-insensitively.
@@ -223,10 +239,10 @@ impl SortField {
     /// into groups between letters and numbers, and then sorts those blocks
     /// together, so `file10` will sort after `file9`, instead of before it
     /// because of the `1`.
-    pub fn compare_files(&self, a: &File, b: &File) -> Ordering {
+    pub fn compare_files(self, a: &File, b: &File) -> Ordering {
         use self::SortCase::{ABCabc, AaBbCc};
 
-        match *self {
+        match self {
             SortField::Unsorted  => Ordering::Equal,
 
             SortField::Name(ABCabc)  => natord::compare(&a.name, &b.name),
@@ -234,10 +250,11 @@ impl SortField {
 
             SortField::Size          => a.metadata.len().cmp(&b.metadata.len()),
             SortField::FileInode     => a.metadata.ino().cmp(&b.metadata.ino()),
-            SortField::ModifiedDate  => a.metadata.mtime().cmp(&b.metadata.mtime()),
-            SortField::AccessedDate  => a.metadata.atime().cmp(&b.metadata.atime()),
-            SortField::CreatedDate   => a.metadata.ctime().cmp(&b.metadata.ctime()),
-            SortField::ModifiedAge   => b.metadata.mtime().cmp(&a.metadata.mtime()),  // flip b and a
+            SortField::ModifiedDate  => a.modified_time().cmp(&b.modified_time()),
+            SortField::AccessedDate  => a.accessed_time().cmp(&b.accessed_time()),
+            SortField::ChangedDate   => a.changed_time().cmp(&b.changed_time()),
+            SortField::CreatedDate   => a.created_time().cmp(&b.created_time()),
+            SortField::ModifiedAge   => b.modified_time().cmp(&a.modified_time()),  // flip b and a
 
             SortField::FileType => match a.type_char().cmp(&b.type_char()) { // todo: this recomputes
                 Ordering::Equal  => natord::compare(&*a.name, &*b.name),
@@ -253,6 +270,23 @@ impl SortField {
                 Ordering::Equal  => natord::compare_ignore_case(&*a.name, &*b.name),
                 order            => order,
             },
+
+            SortField::NameMixHidden(ABCabc) => natord::compare(
+                SortField::strip_dot(&a.name),
+                SortField::strip_dot(&b.name)
+            ),
+            SortField::NameMixHidden(AaBbCc) => natord::compare_ignore_case(
+                SortField::strip_dot(&a.name),
+                SortField::strip_dot(&b.name)
+            )
+        }
+    }
+
+    fn strip_dot(n: &str) -> &str {
+        if n.starts_with('.') {
+            &n[1..]
+        } else {
+            n
         }
     }
 }

@@ -11,7 +11,7 @@ fn main() {
     configure_logger();
 
     let args: Vec<OsString> = args_os().skip(1).collect();
-    match Exa::new(args.iter(), &mut stdout()) {
+    match Exa::from_args(args.iter(), &mut stdout()) {
         Ok(mut exa) => {
             match exa.run() {
                 Ok(exit_status) => exit(exit_status),
@@ -19,7 +19,7 @@ fn main() {
                     match e.kind() {
                         ErrorKind::BrokenPipe => exit(exits::SUCCESS),
                         _ => {
-                            writeln!(stderr(), "{}", e).unwrap();
+                            eprintln!("{}", e);
                             exit(exits::RUNTIME_ERROR);
                         },
                     };
@@ -39,7 +39,7 @@ fn main() {
         },
 
         Err(ref e) => {
-            writeln!(stdout(), "{}", e).unwrap();
+            println!("{}", e);
             exit(exits::SUCCESS);
         },
     };
@@ -62,17 +62,15 @@ pub fn configure_logger() {
         None         => false,
     };
 
-    let mut logs = env_logger::LogBuilder::new();
+    let mut logs = env_logger::Builder::new();
     if present {
-        logs.filter(None, log::LogLevelFilter::Debug);
+        logs.filter(None, log::LevelFilter::Debug);
     }
     else {
-        logs.filter(None, log::LogLevelFilter::Off);
+        logs.filter(None, log::LevelFilter::Off);
     }
 
-    if let Err(e) = logs.init() {
-        writeln!(stderr(), "Failed to initialise logger: {}", e).unwrap();
-    }
+    logs.init()
 }
 
 

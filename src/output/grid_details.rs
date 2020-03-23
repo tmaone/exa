@@ -2,21 +2,22 @@
 
 use std::io::{Write, Result as IOResult};
 
-use ansi_term::ANSIStrings;
+use ansi_term::{ANSIGenericString, ANSIStrings};
 use term_grid as grid;
 
-use fs::{Dir, File};
-use fs::feature::git::GitCache;
-use fs::feature::xattr::FileAttributes;
-use fs::filter::FileFilter;
+use crate::fs::{Dir, File};
+use crate::fs::feature::git::GitCache;
+use crate::fs::feature::xattr::FileAttributes;
+use crate::fs::filter::FileFilter;
 
-use style::Colours;
-use output::cell::TextCell;
-use output::details::{Options as DetailsOptions, Row as DetailsRow, Render as DetailsRender};
-use output::grid::Options as GridOptions;
-use output::file_name::FileStyle;
-use output::table::{Table, Row as TableRow, Options as TableOptions};
-use output::tree::{TreeParams, TreeDepth};
+use crate::style::Colours;
+use crate::output::cell::TextCell;
+use crate::output::details::{Options as DetailsOptions, Row as DetailsRow, Render as DetailsRender};
+use crate::output::grid::Options as GridOptions;
+use crate::output::file_name::FileStyle;
+use crate::output::table::{Table, Row as TableRow, Options as TableOptions};
+use crate::output::tree::{TreeParams, TreeDepth};
+use crate::output::icons::painted_icon;
 
 
 #[derive(Debug)]
@@ -87,7 +88,7 @@ impl<'a> Render<'a> {
     /// *n* files into each column’s table, not all of them.
     pub fn details(&self) -> DetailsRender<'a> {
         DetailsRender {
-            dir: self.dir.clone(),
+            dir: self.dir,
             files: Vec::new(),
             colours: self.colours,
             style: self.style,
@@ -135,7 +136,17 @@ impl<'a> Render<'a> {
                        .collect::<Vec<TableRow>>();
 
         let file_names = self.files.iter()
-                             .map(|file| self.style.for_file(file, self.colours).paint().promote())
+                             .map(|file| {
+                                 if self.details.icons {
+                                    let mut icon_cell = TextCell::default();
+                                    icon_cell.push(ANSIGenericString::from(painted_icon(&file, &self.style)), 2);
+                                    let file_cell = self.style.for_file(file, self.colours).paint().promote();
+                                    icon_cell.append(file_cell);
+                                    icon_cell
+                                 } else {
+                                     self.style.for_file(file, self.colours).paint().promote()
+                                 }
+                             })
                              .collect::<Vec<TextCell>>();
 
         let mut last_working_table = self.make_grid(1, options, git, &file_names, rows.clone(), &drender);
@@ -170,7 +181,7 @@ impl<'a> Render<'a> {
         None
     }
 
-    fn make_table<'t>(&'a self, options: &'a TableOptions, mut git: Option<&'a GitCache>, drender: &DetailsRender) -> (Table<'a>, Vec<DetailsRow>) {
+    fn make_table(&'a self, options: &'a TableOptions, mut git: Option<&'a GitCache>, drender: &DetailsRender) -> (Table<'a>, Vec<DetailsRow>) {
         match (git, self.dir) {
             (Some(g), Some(d))  => if !g.has_anything_for(&d.path) { git = None },
             (Some(g), None)     => if !self.files.iter().any(|f| g.has_anything_for(&f.path)) { git = None },
@@ -226,7 +237,7 @@ impl<'a> Render<'a> {
                                        else { grid::Direction::TopToBottom };
 
         let mut grid = grid::Grid::new(grid::GridOptions {
-            direction:  direction,
+            direction,
             filling:    grid::Filling::Spaces(4),
         });
 
